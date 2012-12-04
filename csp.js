@@ -112,6 +112,9 @@ var Url = csp.Url = inherit({
     this.file = "";
     this.hash = "";
     this.path = "";
+
+    this.hasWildcardHost = false;
+    this.hasWildcardPort = false;
     /*
     this.relative = "";
     this.params = {};
@@ -136,8 +139,13 @@ var Url = csp.Url = inherit({
       if (this.scheme) {
         url += "://";
       }
+      if (this.hasWildcardHost) {
+        url += "*";
+      }
       url += this.host;
-      if (this.port) {
+      if (this.hasWildcardPort) {
+        url += ":*";
+      } else if (this.port) {
         url += ":" + this.port;
       }
       if (this.file || this.query || this.path) {
@@ -256,6 +264,55 @@ var Url = csp.Url = inherit({
     } else {
       this.path = "/";
     }
+  },
+
+  set host(host) {
+    // Is the host wildcarded? If so, strip the astrisk; it makes comparison
+    // simpler later on, as we can do a simple suffix test.
+    var ASTERISK = "*";
+    var PERIOD = ".";
+
+    if (host.indexOf(ASTERISK) == 0 && host.indexOf(PERIOD) == 1) {
+      this.hasWildcardHost = true;
+      this._host = host.substring(1);
+    } else {
+      this.hasWildcardHost = false;
+      this._host = host;
+    }
+  },
+  get host() {
+    return this._host;
+  },
+
+  set port(port) {
+    // Is the port wildcarded? If so, strip it; it makes comparison
+    // simpler later on, as we can just check the bool.
+    var ASTERISK = "*";
+    if (port == ASTERISK) {
+      this.hasWildcardPort = true;
+      this._port = true;
+    } else {
+      this.hasWildcardPort = false;
+      this._port = port;
+    }
+  },
+  get port() {
+    return this._port;
+  },
+  get effectivePort() {
+    // If port is the empty string, return the default port for the URL's scheme
+    if (this.port == "") {
+      // FIXME: Are we sure that the scheme matches the document's scheme?
+      switch (this.scheme) {
+        case "https":
+          return 443;
+        case "http":
+          return 80;
+        default:
+          return "";
+      };
+    }
+    return this.port;
   }
 });
 
@@ -295,9 +352,9 @@ var SourceExpression = csp.SourceExpression = inherit({
     var scheme = this.scheme || "http";
     switch(scheme) {
       case "http":
-        return port == "80";
+        return this.port == "80";
       case "https":
-        return port == "143";
+        return this.port == "443";
       default:
         return true;
     }
@@ -317,6 +374,12 @@ var ciMatch = function() {
     return true;
   });
   return match;
+};
+
+var ciSuffix = function(string, suffix) {
+    // Is 'suffix' a case-insensitive suffix of 'string'?
+    var idx = string.toUpperCase().lastIndexOf(suffix.toUpperCase());
+    return !( idx == -1 || idx + suffix.length != string.length)
 };
 
 
@@ -381,28 +444,21 @@ var matchSourceExpression =
     //   leading U+002E FULL STOP character (.), are not a case insensitive
     //   match for the rightmost characters of uri-host, then return does not
     //   match.
-    if (se.host.charAt(0) == "*") {
-      var hostRemainder = se.host.substring(1);
-      var hostRemainderIndex = url.host.lastIndexOf(hostRemainder);
-      if ( (hostRemainderIndex != -1) &&
-           (hostRemainderIndex + hostRemainder != url.host.length) ) {
-          return false;
-      }
-    }
+    if (se.hasWildcardHost && !ciSuffix(url.host, se.host)) return false;
 
     //   If uri-host is not a case insensitive match for the source expression's
     //   host, then return does not match.
-    if (!ciMatch(se.host, url.host)) return false;
+    if (!se.hasWildcardHost && !ciMatch(se.host, url.host)) return false;
 
     //   If the source expression does not contain a port and uri-port is not
     //   the default port for uri-scheme, then return does not match.
     if (!se.port && !url.portIsDefaultForScheme()) return false;
 
     //   If the source expression does contain a port, then return does not
-    //   match if
-    if (se.port && (se.port != "*") && (se.port != url.port)) {
-      //   port does not contain an U+002A ASTERISK character (*), and
-      //   port does not represent the same number as uri-port.
+    //   match if port does not contain a U+002A ASTERISK character (*), and
+    //   port does not represent the same number as uri-port.
+    if (se.port && !se.hasWildcardPort &&
+        (se.effectivePort != url.effectivePort)) {
       return false;
     }
 
