@@ -37,6 +37,16 @@ doh.add("csp.Url", [
       [ "example.com/", "example.com" ],
       [ "example.com:80/", "example.com:80" ],
       [ "example.com:8080/", "example.com:8080"],
+
+      "*.example.com/",
+      [ "*.example.com/", "*.example.com" ],
+      "*.example.com/foo.html",
+      "*.example.com:8080/",
+      [ "*.example.com:8080/", "*.example.com:8080" ],
+      "*.example.com:*/foo.html",
+      "*.example.com:*/",
+      [ "*.example.com:*/", "*.example.com:*" ],
+      "*.example.com:*/foo.html",
     ].forEach(toStringTester);
   },
   function parseError() {
@@ -115,11 +125,34 @@ doh.add("csp.SecurityPolicy", [
     t.t(new csp.SecurityPolicy("", base).allowsConnectionTo(base));
 
     t.f(new csp.SecurityPolicy("default-src http://foo.com", base).allowsConnectionTo(base));
-    t.f(new csp.SecurityPolicy("default-src http://*.com", base).allowsConnectionTo(base));
+    t.f(new csp.SecurityPolicy("default-src http://foo.com:80", base).allowsConnectionTo(base));
+    t.f(new csp.SecurityPolicy("default-src http://foo.com:8080", base).allowsConnectionTo(base));
+    t.f(new csp.SecurityPolicy("default-src http://foo.com:*", base).allowsConnectionTo(base));
+    t.t(new csp.SecurityPolicy("default-src http://*.com", base).allowsConnectionTo(base));
+    t.t(new csp.SecurityPolicy("default-src http://*.com:80", base).allowsConnectionTo(base));
+    t.f(new csp.SecurityPolicy("default-src http://*.com:8080", base).allowsConnectionTo(base));
+    t.t(new csp.SecurityPolicy("default-src http://*.com:*", base).allowsConnectionTo(base));
     t.f(new csp.SecurityPolicy("default-src https://example.com", base).allowsConnectionTo(base));
+    t.f(new csp.SecurityPolicy("default-src https://example.com:443", base).allowsConnectionTo(base));
+    t.f(new csp.SecurityPolicy("default-src https://example.com:8080", base).allowsConnectionTo(base));
+    t.f(new csp.SecurityPolicy("default-src https://example.com:*", base).allowsConnectionTo(base));
 
     t.t(new csp.SecurityPolicy("default-src 'self'", base).allowsConnectionTo("/foo"));
     t.f(new csp.SecurityPolicy("default-src 'none'", base).allowsConnectionTo("/foo"));
+
+    var standardPort = "http://example.com:80/foo.html";
+    t.t(new csp.SecurityPolicy(undefined, standardPort).allowsConnectionTo(standardPort));
+    t.t(new csp.SecurityPolicy("default-src *", standardPort).allowsConnectionTo(standardPort));
+    t.f(new csp.SecurityPolicy("default-src 'none'", standardPort).allowsConnectionTo(standardPort));
+    t.f(new csp.SecurityPolicy("default-src;", standardPort).allowsConnectionTo(standardPort));
+    t.t(new csp.SecurityPolicy("", standardPort).allowsConnectionTo(standardPort));
+
+    t.f(new csp.SecurityPolicy("default-src http://foo.com", standardPort).allowsConnectionTo(standardPort));
+    t.t(new csp.SecurityPolicy("default-src http://*.com", standardPort).allowsConnectionTo(standardPort));
+    t.f(new csp.SecurityPolicy("default-src https://example.com", standardPort).allowsConnectionTo(standardPort));
+
+    t.t(new csp.SecurityPolicy("default-src 'self'", standardPort).allowsConnectionTo("/foo"));
+    t.f(new csp.SecurityPolicy("default-src 'none'", standardPort).allowsConnectionTo("/foo"));
   },
 
   /*
