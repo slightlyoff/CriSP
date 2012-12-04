@@ -112,6 +112,9 @@ var Url = csp.Url = inherit({
     this.file = "";
     this.hash = "";
     this.path = "";
+
+    this.hasWildcardHost = false;
+    this.hasWildcardPort = false;
     /*
     this.relative = "";
     this.params = {};
@@ -136,8 +139,13 @@ var Url = csp.Url = inherit({
       if (this.scheme) {
         url += "://";
       }
+      if (this.hasWildcardHost) {
+        url += "*";
+      }
       url += this.host;
-      if (this.port) {
+      if (this.hasWildcardPort) {
+        url += ":*";
+      } else if (this.port) {
         url += ":" + this.port;
       }
       if (this.file || this.query || this.path) {
@@ -256,6 +264,40 @@ var Url = csp.Url = inherit({
     } else {
       this.path = "/";
     }
+  },
+
+  set host(host) {
+    // Is the host wildcarded? If so, strip the astrisk; it makes comparison
+    // simpler later on, as we can do a simple suffix test.
+    var ASTERISK = "*";
+    var PERIOD = ".";
+
+    if (host.indexOf(ASTERISK) == 0 && host.indexOf(PERIOD) == 1) {
+      this.hasWildcardHost = true;
+      this._host = host.substring(1);
+    } else {
+      this.hasWildcardHost = false;
+      this._host = host;
+    }
+  },
+  get host() {
+    return this._host;
+  },
+
+  set port(port) {
+    // Is the port wildcarded? If so, strip it; it makes comparison
+    // simpler later on, as we can just check the bool.
+    var ASTERISK = "*";
+    if (port == ASTERISK) {
+      this.hasWildcardPort = true;
+      this._port = "";
+    } else {
+      this.hasWildcardPort = false;
+      this._port = port;
+    }
+  },
+  get port() {
+    return this._port;
   }
 });
 

@@ -37,6 +37,16 @@ doh.add("csp.Url", [
       [ "example.com/", "example.com" ],
       [ "example.com:80/", "example.com:80" ],
       [ "example.com:8080/", "example.com:8080"],
+
+      "*.example.com/",
+      [ "*.example.com/", "*.example.com" ],
+      "*.example.com/foo.html",
+      "*.example.com:8080/",
+      [ "*.example.com:8080/", "*.example.com:8080" ],
+      "*.example.com:*/foo.html",
+      "*.example.com:*/",
+      [ "*.example.com:*/", "*.example.com:*" ],
+      "*.example.com:*/foo.html",
     ].forEach(toStringTester);
   },
   function parseError() {
