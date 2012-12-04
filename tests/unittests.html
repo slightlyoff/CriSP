@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>CriSP Javascript Tests</title>
+
+    <script>
+      // Utility code to log results to the page.
+      var append = function(n, h) { (h||document.body).appendChild(n); return n; };
+      var t = function(text) { return document.createTextNode(text); };
+      var el = function(type, html, text) {
+        var node = document.createElement(type);
+        if (html) { node.innerHTML = html; }
+        if (text) { node.appendChild(t(text)); }
+        return node;
+      };
+
+      var domLog = function() {
+        var al = arguments.length;
+        var pre = append(el("pre"));
+        for(var x = 0; x < al; x++) {
+          append(t(arguments[x]), pre);
+          append(t("\n"), pre);
+        }
+      };
+
+      // print = function(s) { console.log(s); }
+      var printLog = [];
+      print = function(s) { printLog.push(s); }
+    </script>
+
+    <script src="../csp.js"></script>
+    <script src="../third_party/doh/runner.js"></script>
+    <script>doh.squelch = false;</script>
+    <script src="csp-test.js"></script>
+    <script>doh.run();</script>
+  </head>
+  <body>
+    <h1>CriSP Smoke Tests</h1>
+    <script>
+      window.addEventListener("load", function() {
+        append(el("h2", "In-page test results:"));
+        append(el("pre", printLog.join("\n")));
+        printLog.length = 0;
+      }, false);
+    </script>
+  </body>
+</html>

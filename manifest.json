@@ -1,0 +1,20 @@
+{
+  "name": "CriSP",
+  "version": "0.1",
+  "description": "",
+  "permissions": [
+      "webRequest",         // For getting/setting CSP headers
+      "webRequestBlocking", // To clobber out-of-line content
+      "storage",            // For setting/synchronizing preferred policy
+      // Absolutely do not want to handle ftp:// and file://
+      "http://*/*",
+      "https://*/*"
+  ],
+  "background": {
+    // Would love to make this an event page but we can't use webRequest + event
+    // pages =(
+    "scripts": [ "csp.js", "background.js" ]
+  },
+  "icons": { "128": "images/logo_128.png" },
+  "manifest_version": 2
+}
