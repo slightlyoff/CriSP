@@ -401,7 +401,7 @@ var matchSourceExpression =
   if (source == "*") { return true; }
 
   // Empty set, no match for anything.
-  if (source == "'none'") { console.log("source == 'none'"); return false; }
+  if (source == "'none'") { return false; }
 
   var doc = new SourceExpression(documentUrl);
   var se = new SourceExpression(source);

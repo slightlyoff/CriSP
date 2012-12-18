@@ -119,10 +119,10 @@ doh.add("csp.SecurityPolicy", [
   function allowsConnectionTo(t) {
     var base = "http://example.com/foo.html";
     t.t(new csp.SecurityPolicy(undefined, base).allowsConnectionTo(base));
+    t.t(new csp.SecurityPolicy("", base).allowsConnectionTo(base));
     t.t(new csp.SecurityPolicy("default-src *", base).allowsConnectionTo(base));
     t.f(new csp.SecurityPolicy("default-src 'none'", base).allowsConnectionTo(base));
     t.f(new csp.SecurityPolicy("default-src;", base).allowsConnectionTo(base));
-    t.t(new csp.SecurityPolicy("", base).allowsConnectionTo(base));
 
     t.f(new csp.SecurityPolicy("default-src http://foo.com", base).allowsConnectionTo(base));
     t.f(new csp.SecurityPolicy("default-src http://foo.com:80", base).allowsConnectionTo(base));
