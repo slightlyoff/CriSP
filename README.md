@@ -3,7 +3,7 @@ CriSP
 
 A user-specified CSP extension for Chromium.
 
-Licensed [Apache License 2.0](LICENSE), Copyright 2012 [Google](https://github.com/google).
+Licensed under the [Apache License version 2.0](https://github.com/slightlyoff/CriSP/blob/master/LICENSE), Copyright 2012 [Google](https://github.com/google), all rights reserved.
 
 What Is This?
 -------------
@@ -58,8 +58,8 @@ your $PATH.
 License
 -------
 
-This project is licensed under the [Apache License 2.0](LICENSE), except for
-the contents of the "third_party" directory, where licenses are noted on a
-per-directory basis. No "third_party" code is required for the essential
+This project is licensed under the [Apache License version 2.0](https://github.com/slightlyoff/CriSP/blob/master/LICENSE),
+save for the contents of the "third_party" directory, where licenses are noted
+on a per-directory basis. No "third_party" code is required for the essential
 functioning of this library/extension.
 
