@@ -3,7 +3,7 @@ CriSP
 
 A user-specified CSP extension for Chromium.
 
-Licensed Apache v2, copyright 2012 [Google](https://github.com/google).
+Licensed [Apache License 2.0](LICENSE), Copyright 2012 [Google](https://github.com/google).
 
 What Is This?
 -------------
