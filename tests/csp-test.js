@@ -1,4 +1,6 @@
-// Parts Copyright (C) 2012, Alex Russell (slightlyoff@chromium.org)
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by an Apache-style license that can be
+// found in the LICENSE file.
 
 "use strict";
 
