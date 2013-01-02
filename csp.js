@@ -657,40 +657,37 @@ var SecurityPolicy = csp.SecurityPolicy = inherit({
   },
 
   allowsConnectionTo: function(url) {
-    return this._allowsUrlFromSet(url,
-                                  [this.connectSrc, this.defaultSrc]);
-
+    return this._allowsUrlFromSet(url, [this.connectSrc, this.defaultSrc]);
   },
 
   allowsFontFrom: function(url) {
-    return this._allowsUrlFromSet(url,
-                                  [this.fontSrc, this.defaultSrc]);
+    return this._allowsUrlFromSet(url, [this.fontSrc, this.defaultSrc]);
   },
   allowsFormAction: function(url) {
-    return this._allowsUrlFromSet(url,
-                                  [this.formAction, this.defaultSrc]);
+    return this._allowsUrlFromSet(url, [this.formAction, this.defaultSrc]);
   },
 
   allowsFrameFrom: function(url) {
-
+    return this._allowsUrlFromSet(url, [this.frameSrc, this.defaultSrc]);
   },
   allowsImageFrom: function(url) {
-
+    return this._allowsUrlFromSet(url, [this.imgSrc, this.defaultSrc]);
   },
   allowsMediaFrom: function(url) {
+    return this._allowsUrlFromSet(url, [this.mediaSrc, this.defaultSrc]);
 
   },
   allowsObjectFrom: function(url) {
-
+    return this._allowsUrlFromSet(url, [this.objectSrc, this.defaultSrc]);
   },
   allowsPluginType: function(type) {
-
+    // FIXME(slightlyoff)
   },
   allowsScriptFrom: function(url) {
-
+    return this._allowsUrlFromSet(url, [this.scriptSrc, this.defaultSrc]);
   },
   allowsStyleFrom: function(url) {
-
+    return this._allowsUrlFromSet(url, [this.styleSrc, this.defaultSrc]);
   },
   // FIXME: this should be an attribute getter
   isActive: function() {

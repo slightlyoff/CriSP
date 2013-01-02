@@ -91,8 +91,71 @@ doh.add("csp.matchSourceExpression", [
 
   ].forEach(function(test) {
     Object.keys(subs).forEach(function(key) {
-      test = test.replace(key, subs[key], "g");
+      while(test.indexOf(key) >= 0) {
+        test = test.replace(key, subs[key]);
+      }
     });
+    doh.add("csp.SecurityPolicy", test);
+  });
+});
+
+// Generate an identical set of tests for each method
+[{ METHOD: "allowsConnectionTo", SOURCE: "connect-src" },
+ { METHOD: "allowsFontFrom",     SOURCE: "font-src",    EXT: ".ttf" },
+ { METHOD: "allowsFormAction",   SOURCE: "form-action" },
+ { METHOD: "allowsFrameFrom",    SOURCE: "frame-src" },
+ { METHOD: "allowsImageFrom",    SOURCE: "img-src",     EXT: ".png" },
+ { METHOD: "allowsMediaFrom",    SOURCE: "media-src",   EXT: ".webm" },
+ { METHOD: "allowsObjectFrom",   SOURCE: "object-src",  EXT: ".swf" },
+ { METHOD: "allowsScriptFrom",   SOURCE: "script-src",  EXT: ".js" },
+ { METHOD: "allowsStyleFrom",    SOURCE: "style-src",   EXT: ".css" },
+].forEach(function(subs){
+  subs.STD_PORT = "http://example.com:80/foo" + (subs.EXT||"");
+  subs.BASE = "http://example.com/foo" + (subs.EXT||"");
+  [
+    // Neither default-src nor script-src are set
+    "t.t((new csp.SecurityPolicy()).METHOD);",
+    "t.t(new csp.SecurityPolicy(undefined, \"BASE\").METHOD(\"BASE\"));",
+    "t.t(new csp.SecurityPolicy(\"\", \"BASE\").METHOD(\"BASE\"));",
+    "t.t(new csp.SecurityPolicy(\"SOURCE *\", \"BASE\").METHOD(\"BASE\"));",
+    "t.f(new csp.SecurityPolicy(\"SOURCE 'none'\", \"BASE\").METHOD(\"BASE\"));",
+    "t.f(new csp.SecurityPolicy(\"SOURCE;\", \"BASE\").METHOD(\"BASE\"));",
+
+    "t.f(new csp.SecurityPolicy(\"SOURCE http://foo.com\", \"BASE\").METHOD(\"BASE\"));",
+    "t.f(new csp.SecurityPolicy(\"SOURCE http://foo.com:80\", \"BASE\").METHOD(\"BASE\"));",
+    "t.f(new csp.SecurityPolicy(\"SOURCE http://foo.com:8080\", \"BASE\").METHOD(\"BASE\"));",
+    "t.f(new csp.SecurityPolicy(\"SOURCE http://foo.com:*\", \"BASE\").METHOD(\"BASE\"));",
+    "t.t(new csp.SecurityPolicy(\"SOURCE http://*.com\", \"BASE\").METHOD(\"BASE\"));",
+    "t.t(new csp.SecurityPolicy(\"SOURCE http://*.com:80\", \"BASE\").METHOD(\"BASE\"));",
+    "t.f(new csp.SecurityPolicy(\"SOURCE http://*.com:8080\", \"BASE\").METHOD(\"BASE\"));",
+    "t.t(new csp.SecurityPolicy(\"SOURCE http://*.com:*\", \"BASE\").METHOD(\"BASE\"));",
+    "t.f(new csp.SecurityPolicy(\"SOURCE https://example.com\", \"BASE\").METHOD(\"BASE\"));",
+    "t.f(new csp.SecurityPolicy(\"SOURCE https://example.com:443\", \"BASE\").METHOD(\"BASE\"));",
+    "t.f(new csp.SecurityPolicy(\"SOURCE https://example.com:8080\", \"BASE\").METHOD(\"BASE\"));",
+    "t.f(new csp.SecurityPolicy(\"SOURCE https://example.com:*\", \"BASE\").METHOD(\"BASE\"));",
+
+    "t.t(new csp.SecurityPolicy(\"SOURCE 'self'\", \"BASE\").METHOD(\"/foo\"));",
+    "t.f(new csp.SecurityPolicy(\"SOURCE 'none'\", \"BASE\").METHOD(\"/foo\"));",
+
+    "t.t(new csp.SecurityPolicy(undefined, \"STD_PORT\").METHOD(\"STD_PORT\"));",
+    "t.t(new csp.SecurityPolicy(\"SOURCE *\", \"STD_PORT\").METHOD(\"STD_PORT\"));",
+    "t.f(new csp.SecurityPolicy(\"SOURCE 'none'\", \"STD_PORT\").METHOD(\"STD_PORT\"));",
+    "t.f(new csp.SecurityPolicy(\"SOURCE;\", \"STD_PORT\").METHOD(\"STD_PORT\"));",
+    "t.t(new csp.SecurityPolicy(\"\", \"STD_PORT\").METHOD(\"STD_PORT\"));",
+
+    "t.f(new csp.SecurityPolicy(\"SOURCE http://foo.com\", \"STD_PORT\").METHOD(\"STD_PORT\"));",
+    "t.t(new csp.SecurityPolicy(\"SOURCE http://*.com\", \"STD_PORT\").METHOD(\"STD_PORT\"));",
+    "t.f(new csp.SecurityPolicy(\"SOURCE https://example.com\", \"STD_PORT\").METHOD(\"STD_PORT\"));",
+
+    "t.t(new csp.SecurityPolicy(\"SOURCE 'self'\", \"STD_PORT\").METHOD(\"/foo\"));",
+    "t.f(new csp.SecurityPolicy(\"SOURCE 'none'\", \"STD_PORT\").METHOD(\"/foo\"));",
+  ].forEach(function(test) {
+    Object.keys(subs).forEach(function(key) {
+      while(test.indexOf(key) >= 0) {
+        test = test.replace(key, subs[key]);
+      }
+    });
+    console.log(test);
     doh.add("csp.SecurityPolicy", test);
   });
 });
@@ -111,82 +174,12 @@ doh.add("csp.SecurityPolicy", [
   },
   /*
   function ctor() {
-
   },
   function parseError() {
-
-  },
-  */
-
-  function allowsConnectionTo(t) {
-    var base = "http://example.com/foo.html";
-    t.t(new csp.SecurityPolicy(undefined, base).allowsConnectionTo(base));
-    t.t(new csp.SecurityPolicy("", base).allowsConnectionTo(base));
-    t.t(new csp.SecurityPolicy("default-src *", base).allowsConnectionTo(base));
-    t.f(new csp.SecurityPolicy("default-src 'none'", base).allowsConnectionTo(base));
-    t.f(new csp.SecurityPolicy("default-src;", base).allowsConnectionTo(base));
-
-    t.f(new csp.SecurityPolicy("default-src http://foo.com", base).allowsConnectionTo(base));
-    t.f(new csp.SecurityPolicy("default-src http://foo.com:80", base).allowsConnectionTo(base));
-    t.f(new csp.SecurityPolicy("default-src http://foo.com:8080", base).allowsConnectionTo(base));
-    t.f(new csp.SecurityPolicy("default-src http://foo.com:*", base).allowsConnectionTo(base));
-    t.t(new csp.SecurityPolicy("default-src http://*.com", base).allowsConnectionTo(base));
-    t.t(new csp.SecurityPolicy("default-src http://*.com:80", base).allowsConnectionTo(base));
-    t.f(new csp.SecurityPolicy("default-src http://*.com:8080", base).allowsConnectionTo(base));
-    t.t(new csp.SecurityPolicy("default-src http://*.com:*", base).allowsConnectionTo(base));
-    t.f(new csp.SecurityPolicy("default-src https://example.com", base).allowsConnectionTo(base));
-    t.f(new csp.SecurityPolicy("default-src https://example.com:443", base).allowsConnectionTo(base));
-    t.f(new csp.SecurityPolicy("default-src https://example.com:8080", base).allowsConnectionTo(base));
-    t.f(new csp.SecurityPolicy("default-src https://example.com:*", base).allowsConnectionTo(base));
-
-    t.t(new csp.SecurityPolicy("default-src 'self'", base).allowsConnectionTo("/foo"));
-    t.f(new csp.SecurityPolicy("default-src 'none'", base).allowsConnectionTo("/foo"));
-
-    var standardPort = "http://example.com:80/foo.html";
-    t.t(new csp.SecurityPolicy(undefined, standardPort).allowsConnectionTo(standardPort));
-    t.t(new csp.SecurityPolicy("default-src *", standardPort).allowsConnectionTo(standardPort));
-    t.f(new csp.SecurityPolicy("default-src 'none'", standardPort).allowsConnectionTo(standardPort));
-    t.f(new csp.SecurityPolicy("default-src;", standardPort).allowsConnectionTo(standardPort));
-    t.t(new csp.SecurityPolicy("", standardPort).allowsConnectionTo(standardPort));
-
-    t.f(new csp.SecurityPolicy("default-src http://foo.com", standardPort).allowsConnectionTo(standardPort));
-    t.t(new csp.SecurityPolicy("default-src http://*.com", standardPort).allowsConnectionTo(standardPort));
-    t.f(new csp.SecurityPolicy("default-src https://example.com", standardPort).allowsConnectionTo(standardPort));
-
-    t.t(new csp.SecurityPolicy("default-src 'self'", standardPort).allowsConnectionTo("/foo"));
-    t.f(new csp.SecurityPolicy("default-src 'none'", standardPort).allowsConnectionTo("/foo"));
-  },
-
-  /*
-  function allowsFontFrom() {
-
-  },
-  function allowsFormAction() {
-
-  },
-  function allowsFrameFrom() {
-
-  },
-  function allowsImageFrom() {
-
-  },
-  function allowsMediaFrom() {
-
-  },
-  function allowsObjectFrom() {
-
   },
   function allowsPluginType() {
-
-  },
-  function allowsScriptFrom() {
-
-  },
-  function allowsStyleFrom() {
-
   },
   function isActive() {
-
   },
   */
 ]);
