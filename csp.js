@@ -565,6 +565,26 @@ var PolicyDirective = csp.PolicyDirective = inherit({
 var SecurityPolicy = csp.SecurityPolicy = inherit({
 
   initialize: function(policyStringOrPolicy, baseUrl) {
+    this._clear();
+    this.baseUrl = baseUrl;
+
+    if (policyStringOrPolicy) {
+      if (typeof policyStringOrPolicy == "string") {
+        this.policy = policyStringOrPolicy;
+      } else {
+        // We act as a copy constructor should we be passed an SP
+        // Duck typing!
+        if (!baseUrl && policyStringOrPolicy.baseUrl) {
+          this.baseUrl = policyStringOrPolicy.baseUrl;
+        }
+        if (policyStringOrPolicy.policy) {
+          this.policy = policyStringOrPolicy.policy;
+        }
+      }
+    }
+  },
+
+  _clear: function() {
     // Initialize the following properties:
     //    defaultSrc
     //    scriptSrc
@@ -583,14 +603,14 @@ var SecurityPolicy = csp.SecurityPolicy = inherit({
     SecurityPolicy.directives.forEach(function(directive){
       this[toCamelCase(directive)] = new PolicyDirective(directive);
     }, this);
+  },
 
-    this.baseUrl = baseUrl;
+  get policy() {
+    return this.toString();
+  },
 
-    // We act as a copy constructor should we be passed an SP
-    if ((policyStringOrPolicy instanceof SecurityPolicy) ||
-        (typeof policyStringOrPolicy == "string")) {
-      this._parsePolicy(policyStringOrPolicy+"")
-    }
+  set policy(p) {
+    this._parsePolicy(p+"");
   },
 
   _parsePolicy: function(policy) {
@@ -615,7 +635,6 @@ var SecurityPolicy = csp.SecurityPolicy = inherit({
         r.push(prop.toString());
       }
     }, this);
-    // console.log(r.join("; "));
     return r.join("; ");
   },
 
@@ -629,18 +648,16 @@ var SecurityPolicy = csp.SecurityPolicy = inherit({
   },
 
   _allowsUrlFromSet: function(url, set) {
-    if (!this.baseUrl) throw new Exception("No baseUrl set!");
+    if (!this.baseUrl) throw new Error("No baseUrl set!");
 
-    var base = this.baseUrl;
     for (var x = 0; x < set.length; x++) {
       if (set[x].set) {
-        return matchSourceExpressionList(base, set[x].sourceList, url);
+        return matchSourceExpressionList(this.baseUrl, set[x].sourceList, url);
       }
     }
     return true;
   },
 
-  // FIXME: this should be an attribute getter
   get allowsEval() {
     return this._allowsFromSet("'unsafe-eval'",
                                [this.scriptSrc, this.defaultSrc]);
@@ -670,30 +687,72 @@ var SecurityPolicy = csp.SecurityPolicy = inherit({
   allowsFrameFrom: function(url) {
     return this._allowsUrlFromSet(url, [this.frameSrc, this.defaultSrc]);
   },
+
   allowsImageFrom: function(url) {
     return this._allowsUrlFromSet(url, [this.imgSrc, this.defaultSrc]);
   },
+
   allowsMediaFrom: function(url) {
     return this._allowsUrlFromSet(url, [this.mediaSrc, this.defaultSrc]);
-
   },
+
   allowsObjectFrom: function(url) {
     return this._allowsUrlFromSet(url, [this.objectSrc, this.defaultSrc]);
   },
+
   allowsPluginType: function(type) {
     // FIXME(slightlyoff)
   },
+
   allowsScriptFrom: function(url) {
     return this._allowsUrlFromSet(url, [this.scriptSrc, this.defaultSrc]);
   },
+
   allowsStyleFrom: function(url) {
     return this._allowsUrlFromSet(url, [this.styleSrc, this.defaultSrc]);
   },
-  // FIXME: this should be an attribute getter
-  isActive: function() {
 
+  // FIXME(slightlyoff): this is really a DOM concern about the state of the
+  // document (i.e., "is there any CSP policy currently applied?"). It doesn't
+  // belong here in the API.
+  get isActive() { return false; },
+
+  // Convenience extension to the 1.1 API:
+  allows: function(directive, value) {
+    switch(directive) {
+      case "'unsafe-eval'":
+        return this.allowsEval;
+      case "'unsafe-inline'":
+        return this.allowsInlineScript;
+      case "default-src":
+        return this._allowsUrlFromSet(value, [this.defaultSrc]);
+      case "script-src":
+        return this.allowsScriptFrom(value);
+      case "object-src":
+        return this.allowsObjectFrom(value);
+      case "style-src":
+        return this.allowsStyleFrom(value);
+      case "img-src":
+        return this.allowsImageFrom(value);
+      case "media-src":
+        return this.allowsMediaFrom(value);
+      case "frame-src":
+        return this.allowsFrameFrom(value);
+      case "font-src":
+        return this.allowsFontFrom(value);
+      case "connect-src":
+        return this.allowsConnectionTo(value);
+      case "form-action":
+        return this.allowsFormAction(value);
+      case "plugin-types":
+        return this.allowsPluginType(value);
+      default: return false;
+      // FIXME(slightlyoff)
+      // csae "sandbox":
+      // case "script-nonce":
+      // case "report-uri":
+    };
   },
-
 });
 
 // Merging SecurityPolicy instances *weakens* the overall policy. For the most
@@ -710,9 +769,7 @@ SecurityPolicy.union = function(/*...varArgs*/) {
       var prop = arg[propName];
       if (prop && prop.set) {
         prop.sourceList.forEach(function(origin) {
-          // FIXME(slightlyoff): we should be smarter when merging policies
-          // here. What we really want to konw is is the URL/source in question
-          // not already allowed?". If not, we want to add it.
+          // if (!p.allows(d, origin)) {
           if (p[propName].sourceList._has(origin)) {
             p[propName].sourceList.push(origin);
           }
@@ -724,6 +781,8 @@ SecurityPolicy.union = function(/*...varArgs*/) {
   return p;
 };
 
+// The intersection method returns a policy object that enforces the
+// restrictions of all of the passed policies.
 SecurityPolicy.intersection = function(/*...varArgs*/) {
   var varArgs = Array.prototype.slice.call(arguments, 0).map(function(a) {
     return new SecurityPolicy(a);
@@ -745,7 +804,8 @@ SecurityPolicy.intersection = function(/*...varArgs*/) {
       var prop = arg[propName];
       if (prop && prop.set) {
         prop.sourceList.forEach(function(origin) {
-          if (p[propName].sourceList._has(origin)) {
+          if (!p[propName].sourceList._has(origin)) {
+          // if (!p.allows(d, origin)) {
             p[propName].sourceList.push(origin);
           }
         });

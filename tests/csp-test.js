@@ -155,7 +155,6 @@ doh.add("csp.matchSourceExpression", [
         test = test.replace(key, subs[key]);
       }
     });
-    console.log(test);
     doh.add("csp.SecurityPolicy", test);
   });
 });
@@ -170,7 +169,6 @@ doh.add("csp.SecurityPolicy", [
       var policy = new csp.SecurityPolicy(p);
       t.is(p, policy.toString());
     });
-
   },
   /*
   function ctor() {
@@ -180,6 +178,54 @@ doh.add("csp.SecurityPolicy", [
   function allowsPluginType() {
   },
   function isActive() {
+  },
+  */
+  function intersection(t) {
+    var base = "http://example.com/foo.html";
+    var resource = "http://example.com/foo.css";
+
+    var restrictive = new csp.SecurityPolicy("style-src http://foo.com:*", base);
+    var liberal = new csp.SecurityPolicy("style-src http://*.com", base);
+
+    // Sanity check
+    t.f(restrictive.allowsStyleFrom(resource));
+    t.t(liberal.allowsStyleFrom(resource));
+
+    // Identity
+    var r2 = csp.SecurityPolicy.intersection(restrictive);
+    r2.baseUrl = base;
+    var l2 = csp.SecurityPolicy.intersection(liberal);
+    l2.baseUrl = base;
+    t.f(r2.allowsStyleFrom(resource));
+    t.t(l2.allowsStyleFrom(resource));
+
+    // Now ensure that the intersection is the more restrictive variant
+    var intersection = csp.SecurityPolicy.intersection(restrictive, liberal);
+
+    // FIXME(slightlyoff): this is terrible. We should probably just force
+    // intersection and union to take SP args and not strings in order to ensure
+    // that we have sane bases more of the time, else we're in the situation
+    // where we hae to mangle the arguments to support passing a common base
+    // somehow. Ugggg.
+    //
+    // ...perhaps duck-typing in the copy constructor will save us? Then you can
+    // pass a base in a small object:
+    //
+    //    csp.SecurityPolicy.intersection({ policy: "...", base: "..."}, ...);
+    intersection.baseUrl = base;
+
+    t.debug("i:", intersection);
+    t.f(intersection.allowsStyleFrom(resource));
+
+    // Ensure that we're order-independent
+    var i2 = csp.SecurityPolicy.intersection(liberal, restrictive);
+    i2.baseUrl = base;
+    t.f(i2.allowsStyleFrom(resource));
+  },
+
+  /*
+  function union(t) {
+
   },
   */
 ]);
