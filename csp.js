@@ -171,41 +171,6 @@ var Url = csp.Url = inherit({
 
   // FIXME(slightlyoff): TESTS!!!
   _parseUrl: function(url) {
-    /*
-    // NOTE: we can't use this because browser-provided URL parsing is too
-    // restrictive = (
-
-    // James Padolsey's code from:
-    //    http://james.padolsey.com/javascript/parsing-urls-with-the-dom/
-    // Modifed to my liking.
-
-    var a =  document.createElement("a");
-    a.href = url;
-    this.scheme = a.protocol.replace(":", "");
-    this.host = a.hostname;
-    this.port = a.port;
-    this.query = a.search;
-    this.params = (function(){
-      var ret = {},
-        // FIXME: it's not clear that "&" is the delimiter in all cases
-        seg = a.search.replace(/^\?/, "").split("&"),
-        len = seg.length, i = 0, s;
-
-      for (;i<len;i++) {
-        if (!seg[i]) { continue; }
-        s = seg[i].split('=');
-        ret[s[0]] = s[1];
-      }
-      return ret;
-    })();
-
-    this.file = (a.pathname.match(/\/([^\/?#]+)$/i) || [,''])[1];
-    this.hash = a.hash.replace('#','');
-    this.path = a.pathname.replace(/^([^\/])/,'/$1');
-    this.relative = (a.href.match(/tps?:\/\/[^\/]+(.+)/) || [,''])[1];
-    this.segments = a.pathname.replace(/^\//,'').split('/');
-    */
-
     // Parsing constants
     var SCHEME_SEP = "://";
     var PORT_TOKEN = ":";
@@ -343,6 +308,7 @@ var SourceExpression = csp.SourceExpression = inherit({
   _keywordSources: [ "'self'", "'unsafe-inline'", "'unsafe-eval'" ],
   _parseExpression: function(expr) {
     // See if it's one of our reserved tokens
+    if (expr == "'none'") { return; }
     if (this._keywordSources._has(expr)) {
       this.keywordSource = expr;
     } else {
@@ -523,9 +489,17 @@ var matchSourceExpressionList = function(base, list, url) {
 var PolicyDirective = csp.PolicyDirective = inherit({
 
   initialize: function(policyName) {
-    this.name = policyName;
-    this.set = false;
-    this.sourceList = [];
+    // Copy constructor
+    if (policyName instanceof PolicyDirective) {
+      this.name = policyName.name;
+      this.set = policyName.set;
+      this.sourceList = policyName.sourceList;
+    // Normal init
+    } else {
+      this.name = policyName;
+      this.set = false;
+      this.sourceList = [];
+    }
   },
 
   addSource: function(origin) {
@@ -600,7 +574,7 @@ var SecurityPolicy = csp.SecurityPolicy = inherit({
     //    scriptNonce
     //    pluginTypes
     //    reportUri
-    SecurityPolicy.directives.forEach(function(directive){
+    SecurityPolicy.directives.forEach(function(directive) {
       this[toCamelCase(directive)] = new PolicyDirective(directive);
     }, this);
   },
@@ -717,6 +691,7 @@ var SecurityPolicy = csp.SecurityPolicy = inherit({
   // belong here in the API.
   get isActive() { return false; },
 
+  /*
   // Convenience extension to the 1.1 API:
   allows: function(directive, value) {
     switch(directive) {
@@ -753,12 +728,13 @@ var SecurityPolicy = csp.SecurityPolicy = inherit({
       // case "report-uri":
     };
   },
+  */
 });
 
 // Merging SecurityPolicy instances *weakens* the overall policy. For the most
 // restrictive subset, see SecurityPolicy.intersection(...)
 SecurityPolicy.union = function(/*...varArgs*/) {
-  var p = new SecurityPolicy();
+  var bp = new SecurityPolicy();
   var varArgs = Array.prototype.slice.call(arguments, 0).map(function(a) {
     return new SecurityPolicy(a);
   });
@@ -767,11 +743,18 @@ SecurityPolicy.union = function(/*...varArgs*/) {
     SecurityPolicy.directives.forEach(function(d) {
       var propName = toCamelCase(d);
       var prop = arg[propName];
-      if (prop && prop.set) {
+      // We only bother doing this dance to weaken a policy that's been set on
+      // the baseline policy, else we already are open by default, so there's
+      // very little be done.
+
+      // FIXME(slightlyoff): should we be somewhat more restrictive, adopting
+      // set policies if there isn't one, but loosening them if they both are?
+      if (prop && prop.set && bp[propName].set) {
         prop.sourceList.forEach(function(origin) {
-          // if (!p.allows(d, origin)) {
-          if (p[propName].sourceList._has(origin)) {
-            p[propName].sourceList.push(origin);
+          // FIXME(slightlyoff): what to do about "'none'"? It's the only value
+          // that strengthens a rule...should we special case it?
+          if (!bp[propName].sourceList._has(origin)) {
+            bp[propName].sourceList.push(origin);
           }
         });
       }
@@ -790,30 +773,49 @@ SecurityPolicy.intersection = function(/*...varArgs*/) {
   var baseline = varArgs.shift();
 
   // We baseline our union on the first policy and subtract from there.
-  var p = new SecurityPolicy(baseline);
+  var bp = new SecurityPolicy(baseline);
 
   if (!varArgs.length || !baseline) {
-    return p;
+    return bp;
   }
 
   varArgs.forEach(function(arg) {
     SecurityPolicy.directives.forEach(function(d) {
       var propName = toCamelCase(d);
-      if (!p[propName].sourceList.length) return;
-      // Leave only common values
+      var bProp = bp[propName];
       var prop = arg[propName];
-      if (prop && prop.set) {
-        prop.sourceList.forEach(function(origin) {
-          if (!p[propName].sourceList._has(origin)) {
-          // if (!p.allows(d, origin)) {
-            p[propName].sourceList.push(origin);
-          }
-        });
+      // CSP is open by default, closed as soon as a value is set (opening back
+      // up from there), so if our baseline isn't set but the new one is, then
+      // we want to adopt the new one wholesale, even if it's "*"
+      if (!bProp.set && prop.set) {
+        bp[propName] = prop;
       }
+
+      // Else we only care if both are set as it means there are policies to resolve
+      if(!bProp.set || !prop.set) { return; }
+
+      // Ok, we're in a place where we need to adopt the strictest subset. This
+      // isn't necessarialy the shorter list (as a single "*" is looser and a ""
+      // == "'none'").
+      if (bProp.toString().indexOf("*") == -1 &&
+          prop.toString().indexOf("*") == -1) {
+          // Take a strict subset, ignoring 'none' as it's implied by the
+          // current spec anyway. See:
+          //    http://lists.w3.org/Archives/Public/public-webappsec/2013Jan/0006.html
+          var inBoth = [];
+          bProp.sourceList.forEach(function(v) {
+            if (prop.sourceList._has(v) && v != "'none'") {
+              inBoth.push(v);
+            }
+          });
+          bp[propName].sourceList = inBoth;
+      }
+
+      // FIXME(slightlyoff): need to handle clauses with wildcards!
     });
   });
 
-  return p;
+  return bp;
 };
 
 SecurityPolicy.headerList = [
