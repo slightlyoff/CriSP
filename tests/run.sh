@@ -4,7 +4,7 @@
 # Use of this source code is governed by an Apache-style license that can be
 # found in the LICENSE file.
 
-DOH='../third_party/doh/runner.js'
+DOH='../third_party/doh/runner.js console.js'
 JSCPATH='/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Resources/jsc'
 D8PATH=$(type -P d8)
 JPATH=$(type -P java)
