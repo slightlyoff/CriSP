@@ -8,9 +8,17 @@
 //  chrome.storage.sync.set({defaultPolicy: defaultPolicy}, function() {});
 //  chrome.storage.sync.get(["defaultPolicy"], function(items) {});
 
+var HEADER_NAME = "X-WebKit-CSP";
+
 // FIXME(slighltyoff): stub for now!
-var defaultPolicy = new csp.SecurityPolicy(
-    "default-src 'self'; script-src 'self'; object-src 'self'; font-src;");
+
+var policyTypes = {
+  promsicuious:
+    "default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;",
+  ssl:
+    "default-src https:; script-src https: 'unsafe-inline'; style-src https: 'unsafe-inline'",
+};
+var defaultPolicy = new csp.SecurityPolicy(policyTypes.promsicuious);
 
 chrome.webRequest.onHeadersReceived.addListener(
   function(details) {
@@ -32,8 +40,16 @@ chrome.webRequest.onHeadersReceived.addListener(
       // console.log("enforcing merged policy:", merged.policy);
       headers.push({
         // FIXME: should this be unprefixed now?
-        name: "X-Content-Security-Policy",
+        name: HEADER_NAME,
         value: merged.policy,
+      });
+    } else {
+      // console.log("enforcing default policy:", defaultPolicy.policy);
+      headers.push({
+        // FIXME: should this be unprefixed now?
+        // name: "X-Content-Security-Policy",
+        name: HEADER_NAME,
+        value: defaultPolicy.policy,
       });
     }
     return { responseHeaders: headers };
