@@ -213,8 +213,6 @@ doh.add("csp.SecurityPolicy", [
     //
     //    csp.SecurityPolicy.intersection({ policy: "...", base: "..."}, ...);
     intersection.baseUrl = base;
-    // FIXME(slightlyoff): checkpointing here as wildcard support is busted ATM
-    return;
     t.f(intersection.allowsStyleFrom(resource));
 
     // Ensure that we're order-independent
@@ -273,9 +271,47 @@ doh.add("csp.SecurityPolicy", [
     t.f(intersection.fontSrc.set);
   },
 
-  /*
   function union(t) {
+    var base = "http://example.com/foo.html";
+    var fooResource = "http://foo.com/foo.css";
+    var exampleResource = "http://example.com/foo.css";
 
+    var foo  = new csp.SecurityPolicy(
+      "object-src; style-src http://foo.com/ https://thirdparty.com/", base);
+    var example = new csp.SecurityPolicy("style-src http://example.com/ https://thirdparty.com/", base);
+
+    // Sanity check
+    t.t(foo.allowsStyleFrom(fooResource));
+    t.f(foo.allowsStyleFrom(exampleResource));
+    t.t(foo.objectSrc.set);
+    t.t(example.allowsStyleFrom(exampleResource));
+    t.f(example.allowsStyleFrom(fooResource));
+    t.f(example.allowsStyleFrom("https://baz.org/foo.css"));
+    t.f(example.objectSrc.set);
+    t.f(example.fontSrc.set);
+
+    var union = csp.SecurityPolicy.union(foo, example);
+    union.baseUrl = base;
+    t.t(union.allowsStyleFrom(fooResource));
+    t.t(union.allowsObjectFrom(fooResource));
+    t.f(union.fontSrc.set);
   },
-  */
+
+  function merge(t) {
+    var base = "http://example.com/foo.html";
+    var fooResource = "http://foo.com/foo.css";
+    var exampleResource = "http://example.com/foo.css";
+
+    var foo  = new csp.SecurityPolicy(
+      "object-src; style-src http://foo.com/ https://thirdparty.com/", base);
+    var example = new csp.SecurityPolicy("style-src http://example.com/ https://thirdparty.com/", base);
+
+    var merger = csp.SecurityPolicy.merge(foo, example);
+    merger.baseUrl = base;
+    t.t(merger.allowsStyleFrom(fooResource));
+    // This behavior is what separates union() from merge() and makes merge()
+    // the more restrictive variant.
+    t.f(merger.allowsObjectFrom(fooResource));
+    t.f(merger.fontSrc.set);
+  },
 ]);

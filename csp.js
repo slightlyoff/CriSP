@@ -505,7 +505,13 @@ var PolicyDirective = csp.PolicyDirective = inherit({
   addSource: function(origin) {
     if (!origin) return;
     this.set = true;
-    this.sourceList.push(origin);
+    if (!this._has(origin)) {
+      this.sourceList.push(origin);
+    }
+  },
+
+  _has: function() {
+    return this.sourceList._has.apply(this.sourceList, arguments);
   },
 
   toString: function() {
@@ -615,7 +621,7 @@ var SecurityPolicy = csp.SecurityPolicy = inherit({
   _allowsFromSet: function(type, set) {
     for (var x = 0; x < set.length; x++) {
       if (set[x].set) {
-        return (set[x].sourceList._has(type));
+        return (set[x]._has(type));
       }
     }
     return true;
@@ -690,45 +696,6 @@ var SecurityPolicy = csp.SecurityPolicy = inherit({
   // document (i.e., "is there any CSP policy currently applied?"). It doesn't
   // belong here in the API.
   get isActive() { return false; },
-
-  /*
-  // Convenience extension to the 1.1 API:
-  allows: function(directive, value) {
-    switch(directive) {
-      case "'unsafe-eval'":
-        return this.allowsEval;
-      case "'unsafe-inline'":
-        return this.allowsInlineScript;
-      case "default-src":
-        return this._allowsUrlFromSet(value, [this.defaultSrc]);
-      case "script-src":
-        return this.allowsScriptFrom(value);
-      case "object-src":
-        return this.allowsObjectFrom(value);
-      case "style-src":
-        return this.allowsStyleFrom(value);
-      case "img-src":
-        return this.allowsImageFrom(value);
-      case "media-src":
-        return this.allowsMediaFrom(value);
-      case "frame-src":
-        return this.allowsFrameFrom(value);
-      case "font-src":
-        return this.allowsFontFrom(value);
-      case "connect-src":
-        return this.allowsConnectionTo(value);
-      case "form-action":
-        return this.allowsFormAction(value);
-      case "plugin-types":
-        return this.allowsPluginType(value);
-      default: return false;
-      // FIXME(slightlyoff)
-      // csae "sandbox":
-      // case "script-nonce":
-      // case "report-uri":
-    };
-  },
-  */
 });
 
 // Merging SecurityPolicy instances *weakens* the overall policy. For the most
@@ -751,21 +718,19 @@ SecurityPolicy.union = function(/*...varArgs*/) {
       // set policies if there isn't one, but loosening them if they both are?
       if (prop && prop.set && bp[propName].set) {
         prop.sourceList.forEach(function(origin) {
-          // FIXME(slightlyoff): what to do about "'none'"? It's the only value
-          // that strengthens a rule...should we special case it?
-          if (!bp[propName].sourceList._has(origin)) {
-            bp[propName].sourceList.push(origin);
-          }
+          bp[propName].addSource(origin);
         });
       }
     });
   });
 
-  return p;
+  return bp;
 };
 
 // The intersection method returns a policy object that enforces the
-// restrictions of all of the passed policies.
+// restrictions of all of the passed policies. That is to say, if one policy
+// loosens a restriction to allow some domain but the other doesn't, it won't be
+// allowed in the resulting SecurityPolicy object.
 SecurityPolicy.intersection = function(/*...varArgs*/) {
   var varArgs = Array.prototype.slice.call(arguments, 0).map(function(a) {
     return new SecurityPolicy(a);
@@ -784,37 +749,60 @@ SecurityPolicy.intersection = function(/*...varArgs*/) {
       var propName = toCamelCase(d);
       var bProp = bp[propName];
       var prop = arg[propName];
+
       // CSP is open by default, closed as soon as a value is set (opening back
       // up from there), so if our baseline isn't set but the new one is, then
       // we want to adopt the new one wholesale, even if it's "*"
       if (!bProp.set && prop.set) {
         bp[propName] = prop;
+        return;
       }
 
-      // Else we only care if both are set as it means there are policies to resolve
+      // Else we only care if both are set as it means there are policies to
+      // resolve
       if(!bProp.set || !prop.set) { return; }
 
-      // Ok, we're in a place where we need to adopt the strictest subset. This
-      // isn't necessarialy the shorter list (as a single "*" is looser and a ""
-      // == "'none'").
-      if (bProp.toString().indexOf("*") == -1 &&
-          prop.toString().indexOf("*") == -1) {
-          // Take a strict subset, ignoring 'none' as it's implied by the
-          // current spec anyway. See:
-          //    http://lists.w3.org/Archives/Public/public-webappsec/2013Jan/0006.html
-          var inBoth = [];
-          bProp.sourceList.forEach(function(v) {
-            if (prop.sourceList._has(v) && v != "'none'") {
-              inBoth.push(v);
-            }
-          });
-          bp[propName].sourceList = inBoth;
-      }
-
-      // FIXME(slightlyoff): need to handle clauses with wildcards!
+      // We want to be the strictest. This isn't necessarialy the shorter list
+      // (as a single "*" is looser and a "" == "'none'"). We do this by strict
+      // subsetting, ignoring 'none' as it's implied by the current spec anyway.
+      // See:
+      //    http://lists.w3.org/Archives/Public/public-webappsec/2013Jan/0006.html
+      var inBoth = [];
+      bProp.sourceList.forEach(function(v) {
+        if (prop._has(v) && v != "'none'") {
+          inBoth.push(v);
+        }
+      });
+      bp[propName].sourceList = inBoth;
+      bp[propName].set = true;
     });
   });
 
+  return bp;
+};
+
+// Merge is a hybrid of union and intersection. Unlike union, we start with the
+// most restrictive subset, but we add all the rules that weaken the clause
+// *from every policy*.
+SecurityPolicy.merge = function(/*...varArgs*/) {
+  var bp = new SecurityPolicy();
+  var varArgs = Array.prototype.slice.call(arguments, 0).map(function(a) {
+    return new SecurityPolicy(a);
+  });
+
+  // For every passed policy, we ensure that bp takes the union of values for
+  // each directive, which is to say that we strengthen any policy that might
+  // remain entirely open under union(), but loosen it as far as every policy in
+  // the arguments might want
+  varArgs.forEach(function(arg) {
+    SecurityPolicy.directives.forEach(function(d) {
+      var n = toCamelCase(d);
+      var bProp = bp[n];
+      arg[n].sourceList.forEach(bProp.addSource.bind(bProp));
+      // Capture null lists.
+      bProp.set = bProp.set || arg[n].set;
+    });
+  });
   return bp;
 };
 
