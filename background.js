@@ -4,22 +4,39 @@
 
 "use strict";
 
-// Fetch the default policy from storage/preferences.
+// FIXME(slightlyoff): Fetch the default policy from storage/preferences.
+//  chrome.storage.sync.set({defaultPolicy: defaultPolicy}, function() {});
+//  chrome.storage.sync.get(["defaultPolicy"], function(items) {});
+
 // FIXME(slighltyoff): stub for now!
-
-/*
-  chrome.storage.sync.set({defaultPolicy: defaultPolicy}, function() {});
-  chrome.storage.sync.get(["defaultPolicy"], function(items) {});
-*/
-
 var defaultPolicy = new csp.SecurityPolicy(
-    "script-src 'self'; object-src 'self'; font-src");
+    "default-src 'self'; script-src 'self'; object-src 'self'; font-src;");
 
 chrome.webRequest.onHeadersReceived.addListener(
   function(details) {
     // Parse whatever policy has been sent, merge it with our preferred policy,
     // and set the union as the new CSP
-    return { responseHeaders: details.responseHeaders }
+
+    // FIXME: should we try to be case-insenstitive here?
+    var cspHeaders = [];
+    var headers = [];
+    details.responseHeaders.forEach(function(h) {
+      ((csp.SecurityPolicy.headerList.indexOf(h.name) != -1)
+        ? cspHeaders : headers).push(h);
+    });
+    if (cspHeaders.length) {
+      var policies = cspHeaders.map(function(h) { return h.value; });
+      policies.unshift(defaultPolicy.policy);
+
+      var merged = csp.SecurityPolicy.merge.apply(null, policies);
+      // console.log("enforcing merged policy:", merged.policy);
+      headers.push({
+        // FIXME: should this be unprefixed now?
+        name: "X-Content-Security-Policy",
+        value: merged.policy,
+      });
+    }
+    return { responseHeaders: headers };
   },
   // filters
   {
@@ -46,7 +63,6 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
       name: "X-CriSP-Enforced-Policy",
       value: defaultPolicy.toString()
     })
-    console.log(info.requestHeaders);
   },
   // filters
   {
